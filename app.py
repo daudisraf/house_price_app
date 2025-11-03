@@ -1,41 +1,10 @@
+# app.py
 import streamlit as st
 import joblib
 import pandas as pd
 import numpy as np
-from sklearn.base import BaseEstimator, TransformerMixin
+from encoder import SimpleTargetEncoder  # Import from file
 
-# === SIMPLE TARGET ENCODER (MUST MATCH TRAINING) ===
-class SimpleTargetEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self, smoothing=10):
-        self.smoothing = smoothing
-
-    def fit(self, X, y):
-        X = pd.DataFrame(X)
-        y = pd.Series(y, index=X.index)
-        self.global_mean_ = y.mean()
-        self.mappings_ = {}
-        self.feature_names_in_ = list(X.columns)
-
-        for i, col in enumerate(X.columns):
-            df_temp = pd.DataFrame({'cat': X[col], 'target': y})
-            stats = df_temp.groupby('cat')['target'].agg(['mean', 'count'])
-            smooth = (stats['mean'] * stats['count'] + self.global_mean_ * self.smoothing) / (stats['count'] + self.smoothing)
-            self.mappings_[i] = smooth.to_dict()
-        return self
-
-    def transform(self, X):
-        X = pd.DataFrame(X)
-        out = np.empty_like(X, dtype=float)
-        for i, col in enumerate(X.columns):
-            mapping = self.mappings_.get(i, {})
-            default = self.global_mean_
-            out[:, i] = X[col].map(mapping).fillna(default).values
-        return out
-
-    def get_feature_names_out(self, input_features=None):
-        return self.feature_names_in_
-
-# === LOAD MODEL ===
 @st.cache_resource
 def load_model():
     return joblib.load('house_price_model.pkl')
@@ -48,9 +17,8 @@ except Exception as e:
     st.error("Model failed to load. Check logs.")
     st.stop()
 
-# === APP UI ===
-st.title("Kuala Lumpur House Price Predictor")
-st.markdown("Enter property details to get an **instant price estimate**.")
+st.title("KL House Price Predictor")
+st.markdown("Enter details to get an **instant valuation**.")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -74,9 +42,6 @@ if st.button("Predict Price", type="primary"):
         'Furnishing': furnishing, 'Position': position
     }
     df = pd.DataFrame([input_data])
-    pred_log = pipeline.predict(df)[0]
-    price = np.exp(pred_log)
+    price = np.exp(pipeline.predict(df)[0])
     st.success(f"**Predicted Price: RM {price:,.0f}**")
     st.balloons()
-
-st.caption("Model trained on 18k+ KL properties. Predictions are estimates.")
