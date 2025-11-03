@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
-# === RE-DEFINE YOUR CUSTOM ENCODER HERE ===
+# === SIMPLE TARGET ENCODER (MUST MATCH TRAINING) ===
 class SimpleTargetEncoder(BaseEstimator, TransformerMixin):
     def __init__(self, smoothing=10):
         self.smoothing = smoothing
@@ -35,47 +35,48 @@ class SimpleTargetEncoder(BaseEstimator, TransformerMixin):
     def get_feature_names_out(self, input_features=None):
         return self.feature_names_in_
 
-# === NOW LOAD THE MODEL SAFELY ===
+# === LOAD MODEL ===
 @st.cache_resource
 def load_model():
     return joblib.load('house_price_model.pkl')
 
-loaded = load_model()
-pipeline = loaded['pipeline']
-options = loaded['options']
+try:
+    loaded = load_model()
+    pipeline = loaded['pipeline']
+    options = loaded['options']
+except Exception as e:
+    st.error("Model failed to load. Check logs.")
+    st.stop()
 
-# === STREAMLIT APP ===
-st.title("House Price Predictor")
-st.write("Enter house details to predict price in RM.")
+# === APP UI ===
+st.title("Kuala Lumpur House Price Predictor")
+st.markdown("Enter property details to get an **instant price estimate**.")
 
-# Inputs
 col1, col2 = st.columns(2)
 with col1:
-    rooms = st.number_input("Rooms", 1, 10, 3)
-    bathrooms = st.number_input("Bathrooms", 1, 10, 2)
-    car_parks = st.number_input("Car Parks", 0, 10, 1)
+    rooms = st.slider("Rooms", 1, 10, 3)
+    bathrooms = st.slider("Bathrooms", 1, 8, 2)
+    car_parks = st.slider("Car Parks", 0, 6, 1)
 with col2:
-    size = st.number_input("Size (sq ft)", 0, 10000, 1000)
-    storeys = st.number_input("Storeys", 1, 10, 2)
+    size = st.number_input("Size (sq ft)", 300, 15000, 1000)
+    storeys = st.slider("Storeys", 1, 5, 2)
 
 location = st.selectbox("Location", options['locations'])
-prop_type = st.selectbox("Type", options['types'])
+prop_type = st.selectbox("Property Type", options['types'])
 furnishing = st.selectbox("Furnishing", options['furnishings'])
 position = st.selectbox("Position", options['positions'])
 
-if st.button("Predict Price"):
+if st.button("Predict Price", type="primary"):
     input_data = {
-        'Rooms': rooms,
-        'Bathrooms': bathrooms,
-        'Car Parks': car_parks,
-        'Size': size,
-        'Storeys': storeys,
-        'Location': location,
-        'Type': prop_type,
-        'Furnishing': furnishing,
-        'Position': position
+        'Rooms': rooms, 'Bathrooms': bathrooms, 'Car Parks': car_parks,
+        'Size': size, 'Storeys': storeys,
+        'Location': location, 'Type': prop_type,
+        'Furnishing': furnishing, 'Position': position
     }
     df = pd.DataFrame([input_data])
-    log_pred = pipeline.predict(df)[0]
-    price = np.exp(log_pred)
-    st.success(f"**Predicted Price: RM {price:,.2f}**")
+    pred_log = pipeline.predict(df)[0]
+    price = np.exp(pred_log)
+    st.success(f"**Predicted Price: RM {price:,.0f}**")
+    st.balloons()
+
+st.caption("Model trained on 18k+ KL properties. Predictions are estimates.")
